@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Trophy, Flame, Star } from 'lucide-react';
 import { googleSheetsService } from '../../services/googleSheets';
+import { calculateStreak } from '../../utils/streak';
 
 type Tab = 'streak' | 'quality';
 
@@ -15,7 +16,14 @@ export default function Leaderboard() {
             const questions = await googleSheetsService.getQuestions();
 
             // Calculate stats locally from questions
-            const userStats: Record<string, { name: string, streak: number, totalAha: number, avatar: string, lastPost: string }> = {};
+            const userStats: Record<string, {
+                name: string,
+                streak: number,
+                totalAha: number,
+                avatar: string,
+                lastPost: string,
+                dates: string[]
+            }> = {};
 
             questions.forEach(q => {
                 const key = q.studentId;
@@ -25,24 +33,30 @@ export default function Leaderboard() {
                         streak: 0,
                         totalAha: 0,
                         avatar: q.userAvatar,
-                        lastPost: ''
+                        lastPost: '',
+                        dates: [] // Store dates to calculate streak
                     };
                 }
+
+                userStats[key].dates.push(q.timestamp);
 
                 // Simple calculation: 
                 // totalAha = question count (mock logic since we don't have real likes DB)
                 // streak = question count (mock logic)
                 userStats[key].totalAha += 1;
-                userStats[key].streak += 1;
+                // Streak will be calculated after collecting all dates
             });
 
-            // Convert to array
-            const sortedUsers = Object.values(userStats).map(stat => ({
-                name: stat.name,
-                value: activeTab === 'streak' ? `${stat.streak}회` : `${stat.totalAha}점`, // Changed units to be generic
-                rawScore: activeTab === 'streak' ? stat.streak : stat.totalAha,
-                avatar: stat.avatar
-            }))
+            // Convert to array and calculate streak
+            const sortedUsers = Object.values(userStats).map(stat => {
+                const calculatedStreak = calculateStreak(stat.dates);
+                return {
+                    name: stat.name,
+                    value: activeTab === 'streak' ? `${calculatedStreak}일 연속` : `${stat.totalAha}점`,
+                    rawScore: activeTab === 'streak' ? calculatedStreak : stat.totalAha,
+                    avatar: stat.avatar
+                };
+            })
                 .sort((a, b) => b.rawScore - a.rawScore)
                 .slice(0, 5)
                 .map((u, i) => ({ ...u, rank: i + 1 }));
