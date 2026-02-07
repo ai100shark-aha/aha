@@ -5,7 +5,7 @@ import { googleSheetsService } from '../../services/googleSheets';
 import { calculateStreak } from '../../utils/streak';
 
 export default function StreakCard() {
-    const { user } = useAuth();
+    const { user, refreshTrigger } = useAuth();
     const [stats, setStats] = useState({ current: 0, best: 0 });
 
     useEffect(() => {
@@ -17,28 +17,21 @@ export default function StreakCard() {
         const fetchStreak = async () => {
             try {
                 const questions = await googleSheetsService.getQuestions();
-                const myQuestions = questions.filter(q => q.studentId === user.studentId);
+                // Ensure strict string comparison for ID
+                const myQuestions = questions.filter(q => String(q.studentId) === String(user.studentId));
                 const dates = myQuestions.map(q => q.timestamp);
 
                 const current = calculateStreak(dates);
-                // Simple placeholder logic for 'best' (same as current if max, or can be improved later)
-                // Since our calculateStreak only does 'current', we'd need more logic for 'best'.
-                // For now, let's just make 'best' = 'current' if current > previous best (locally stored?)
-                // Or simply track max consecutive.
 
-                // Better approach: Calculate max consecutive from sorted dates
-                // ... (Complex logic omitted for simplicity, let's just use current as best for MVP or 0)
-                // Actually, let's implement a simple version here or in utils.
-                // For MVP: Best Streak = Current Streak (unless stored elsewhere).
-
-                setStats({ current, best: current }); // Minimal viable "Best"
+                // For MVP, simplified best streak logic
+                setStats({ current, best: current });
             } catch (error) {
                 console.error("Failed to fetch streak", error);
             }
         };
 
         fetchStreak();
-    }, [user]);
+    }, [user, refreshTrigger]);
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
