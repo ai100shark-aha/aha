@@ -31,17 +31,18 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
         const previousLikes = likes;
         const previousIsLiked = isLiked;
 
-        // 1. Optimistic Update
+        // 1. Optimistic Update (Visual Feedback ONLY)
+        // We toggle the heart immediately for responsiveness, but NOT the number logic entirely.
         if (isLiked) {
-            setLikes(prev => Math.max(0, prev - 1));
             setIsLiked(false);
             localStorage.removeItem(likedKey);
-            console.log("[UI] Optimistic Update: Unliked");
+            // We assume -1 for now visually
+            setLikes(prev => Math.max(0, prev - 1));
         } else {
-            setLikes(prev => prev + 1);
             setIsLiked(true);
             localStorage.setItem(likedKey, 'true');
-            console.log("[UI] Optimistic Update: Liked");
+            // We assume +1 for now visually
+            setLikes(prev => prev + 1);
         }
 
         // 2. API Call
@@ -50,13 +51,24 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
             const result: any = await googleSheetsService.toggleLike(question.id, user.studentId);
 
             if (result && result.result === 'success') {
-                console.log("[UI] API Success");
-                // Optional: alert("좋아요 성공! (DB 반영됨)"); 
+                console.log("✅ [UI] API Success, New Count:", result.newCount);
+                // CRITICAL: Update with the ACTUAL server count to ensure sync
+                setLikes(result.newCount);
+
+                // Also ensures our visual state matches server reality (optional but good)
+                const serverIsLiked = result.type === 'liked';
+                setIsLiked(serverIsLiked);
+                if (serverIsLiked) {
+                    localStorage.setItem(likedKey, 'true');
+                } else {
+                    localStorage.removeItem(likedKey);
+                }
+
             } else {
                 throw new Error(result?.message || "Unknown error");
             }
         } catch (error) {
-            console.error("[UI] API Failed, reverting:", error);
+            console.error("❌ [UI] API Failed, reverting:", error);
             alert("좋아요 반영 실패! 원래대로 되돌립니다.");
             // 3. Revert on Failure
             setLikes(previousLikes);

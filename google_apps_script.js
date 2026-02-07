@@ -90,43 +90,58 @@ function doPost(e) {
             const questionId = data.questionId;
             const studentId = data.studentId;
 
+            // 1. Strict Check for Existing Like
+            // We read the entire range to ensure we don't miss anything.
+            const rows = likesSheet.getDataRange().getValues();
             let isLiked = false;
             let rowIndexToDelete = -1;
 
-            // Check existing like
-            const rows = likesSheet.getDataRange().getValues();
             for (let i = 1; i < rows.length; i++) {
-                if (rows[i][0] == questionId && rows[i][1] == studentId) {
-                    rowIndexToDelete = i + 1;
+                if (String(rows[i][0]) === String(questionId) && String(rows[i][1]) === String(studentId)) {
+                    rowIndexToDelete = i + 1; // 1-based index
                     isLiked = true;
                     break;
                 }
             }
 
-            if (isLiked) {
-                likesSheet.deleteRow(rowIndexToDelete);
-            } else {
-                likesSheet.appendRow([questionId, studentId, timestamp]);
-            }
-
-            // Update Count
+            // 2. Locate Question Row for Count Update
             const qRows = questionsSheet.getDataRange().getValues();
             let qRowIndex = -1;
             let currentLikes = 0;
 
             for (let i = 1; i < qRows.length; i++) {
-                if (qRows[i][0] == questionId) {
+                if (String(qRows[i][0]) === String(questionId)) {
                     qRowIndex = i + 1;
-                    currentLikes = Number(qRows[i][7]) || 0;
+                    // Force a fresh read of this specific cell to be absolutely sure, 
+                    // though LockService + array read is usually sufficient. 
+                    // For "Atomic" feeling, we trust the LockService to keep qRows valid.
+                    currentLikes = Number(qRows[i][7]) || 0; // Column H (Index 7)
                     break;
                 }
             }
 
-            let newCount = currentLikes;
-            if (qRowIndex > 0) {
-                newCount = isLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
-                questionsSheet.getRange(qRowIndex, 8).setValue(newCount);
+            if (qRowIndex === -1) {
+                return response({ result: "error", message: "Question not found" });
             }
+
+            // 3. atomic Write
+            let newCount = currentLikes;
+
+            if (isLiked) {
+                // User already liked -> Unlike
+                likesSheet.deleteRow(rowIndexToDelete);
+                // Ensure we don't go below 0
+                newCount = Math.max(0, currentLikes - 1);
+            } else {
+                // User hasn't liked -> Like
+                likesSheet.appendRow([questionId, studentId, timestamp]);
+                newCount = currentLikes + 1;
+            }
+
+            // Update the count in the Questions sheet
+            questionsSheet.getRange(qRowIndex, 8).setValue(newCount);
+            // Force flush to ensure it's written before we release lock (optional but good for safety)
+            SpreadsheetApp.flush();
 
             return response({
                 result: "success",
