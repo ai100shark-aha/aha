@@ -94,8 +94,8 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
             const result: any = await googleSheetsService.addComment(question.id, user.studentId, user.name, newComment.content);
 
             if (result && result.result === 'success') {
-                console.log("[UI] API Success");
-                alert("댓글이 등록되었습니다! (DB 저장 완료)");
+                console.log("✅ [UI] API Success");
+                // alert("댓글이 등록되었습니다! (DB 저장 완료)"); // Removed as per user request
             } else {
                 throw new Error(result?.message || "Unknown error");
             }
