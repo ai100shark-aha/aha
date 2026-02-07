@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { Trophy, Flame, Star } from 'lucide-react';
 import { googleSheetsService } from '../../services/googleSheets';
 import { calculateStreak } from '../../utils/streak';
+import { useAuth } from '../../contexts/AuthContext';
 
 type Tab = 'streak' | 'quality';
 
 export default function Leaderboard() {
+    const { refreshTrigger } = useAuth();
     const [activeTab, setActiveTab] = useState<Tab>('streak');
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -26,6 +28,7 @@ export default function Leaderboard() {
             }> = {};
 
             questions.forEach(q => {
+                // Group by Student ID
                 const key = q.studentId;
                 if (!userStats[key]) {
                     userStats[key] = {
@@ -40,20 +43,19 @@ export default function Leaderboard() {
 
                 userStats[key].dates.push(q.timestamp);
 
-                // Simple calculation: 
-                // totalAha = question count (mock logic since we don't have real likes DB)
-                // streak = question count (mock logic)
+                // Count questions as "Aha" points for now
                 userStats[key].totalAha += 1;
-                // Streak will be calculated after collecting all dates
             });
 
             // Convert to array and calculate streak
             const sortedUsers = Object.values(userStats).map(stat => {
-                const calculatedStreak = calculateStreak(stat.dates);
+                const calculatedStreak = calculateStreak(stat.dates); // Util function
+                const questionCount = stat.totalAha;
+
                 return {
                     name: stat.name,
-                    value: activeTab === 'streak' ? `${calculatedStreak}일 연속` : `${stat.totalAha}점`,
-                    rawScore: activeTab === 'streak' ? calculatedStreak : stat.totalAha,
+                    value: activeTab === 'streak' ? `${calculatedStreak}일 연속` : `${questionCount}개 질문`,
+                    rawScore: activeTab === 'streak' ? calculatedStreak : questionCount,
                     avatar: stat.avatar
                 };
             })
@@ -66,7 +68,7 @@ export default function Leaderboard() {
         };
 
         fetchLeaderboard();
-    }, [activeTab]);
+    }, [activeTab, refreshTrigger]);
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">

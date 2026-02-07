@@ -16,6 +16,8 @@ interface AuthContextType {
     login: (name: string, studentId: string, school: string) => void;
     logout: () => void;
     signInWithGoogle: () => Promise<void>; // Deprecated but kept to avoid breaking types immediately
+    refreshTrigger: number;
+    triggerRefresh: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -31,6 +33,7 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<SimpleUser | null>(null);
     const [loading, setLoading] = useState(true);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     useEffect(() => {
         // Check local storage on load
@@ -60,6 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('aha_user');
     };
 
+    const triggerRefresh = () => {
+        setRefreshTrigger(prev => prev + 1);
+    };
+
     // Placeholder for compatibility
     const signInWithGoogle = async () => {
         console.warn("Google Login is disabled. Use simple login.");
@@ -70,7 +77,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         login,
         logout,
-        signInWithGoogle
+        signInWithGoogle,
+        refreshTrigger,
+        triggerRefresh
     };
 
     return (

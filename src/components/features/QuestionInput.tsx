@@ -5,7 +5,7 @@ import { googleSheetsService } from '../../services/googleSheets';
 import AIGuide from '../common/AIGuide';
 
 export default function QuestionInput() {
-    const { user, login } = useAuth();
+    const { user, login, triggerRefresh } = useAuth();
     const [question, setQuestion] = useState('');
     const [answer, setAnswer] = useState('');
     const [showAnswer, setShowAnswer] = useState(false);
@@ -33,7 +33,7 @@ export default function QuestionInput() {
             await googleSheetsService.submitQuestion({
                 name: user.name,
                 studentId: user.studentId,
-                school: user.school,
+                school: user.school || school, // Use user.school or local state fallback
                 question: question,
                 answer: showAnswer ? answer : undefined
             });
@@ -41,6 +41,10 @@ export default function QuestionInput() {
             setQuestion('');
             setAnswer('');
             setShowAnswer(false);
+
+            // Trigger refresh for leaderboard and feed
+            triggerRefresh();
+
             // alert('질문이 구글 시트에 등록되었습니다!');
         } catch (error: any) {
             console.error("Error submitting", error);
