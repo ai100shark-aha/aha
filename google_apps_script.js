@@ -1,23 +1,20 @@
-
 /**
- * Aha! Project - Google Sheets Backend
+ * Aha! Project - Google Sheets Backend (v2.0 - CORS & Direct Update)
  * 
  * Instructions:
  * 1. Open your Google Sheet.
  * 2. Go to Extensions > Apps Script.
  * 3. Paste this code into Code.gs (replace everything).
  * 4. Run the 'setup' function ONCE to create necessary sheets.
- *    (It will create 'Questions', 'Likes', 'Comments' sheets if they don't exist)
  * 5. Deploy as Web App:
  *    - Click "Deploy" > "Manage deployments" > "Edit" > "New version" > "Deploy".
- *    - OR "New deployment" if starting fresh.
+ *    - IMPORTANT: "Execute as" set to "Me" and "Who has access" set to "Anyone".
  */
 
 function setup() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     // 1. Questions Sheet
-    // Structure: ID (Hidden/System), Date, Name, School, Student ID, Question, AI Answer, Likes Count, Comments Count
     let questionsSheet = ss.getSheetByName("Questions");
     if (!questionsSheet) {
         questionsSheet = ss.insertSheet("Questions");
@@ -26,7 +23,7 @@ function setup() {
         questionsSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
     }
 
-    // 2. Likes Sheet [QuestionID, StudentID, Timestamp]
+    // 2. Likes Sheet
     let likesSheet = ss.getSheetByName("Likes");
     if (!likesSheet) {
         likesSheet = ss.insertSheet("Likes");
@@ -35,7 +32,7 @@ function setup() {
         likesSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
     }
 
-    // 3. Comments Sheet [QuestionID, StudentID, Name, Content, Timestamp]
+    // 3. Comments Sheet
     let commentsSheet = ss.getSheetByName("Comments");
     if (!commentsSheet) {
         commentsSheet = ss.insertSheet("Comments");
@@ -47,12 +44,16 @@ function setup() {
 
 function doPost(e) {
     const lock = LockService.getScriptLock();
-    lock.tryLock(10000);
+    // Decrease lock wait time to prevent long hangs, though 10s is standard
+    try {
+        lock.waitLock(10000);
+    } catch (e) {
+        return response({ result: "error", message: "Server busy, try again" });
+    }
 
     try {
         const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-        // Parse data
         let data;
         try {
             data = JSON.parse(e.postData.contents);
@@ -60,30 +61,28 @@ function doPost(e) {
             data = e.parameter;
         }
 
-        if (!data) throw new Error("No data received");
+        if (!data) return response({ result: "error", message: "No data received" });
 
         const action = data.action || 'create_question';
         const timestamp = new Date();
 
         if (action === 'create_question') {
             const sheet = ss.getSheetByName("Questions");
-            // Generate a unique ID (UUID)
             const id = Utilities.getUuid();
 
-            // Headers: ID, Date, Name, School, Student ID, Question, AI Answer, Likes Count, Comments Count
             sheet.appendRow([
-                id,                 // ID
-                timestamp,          // Date
-                data.name,          // Name
-                data.school || "",  // School
-                data.studentId,     // Student ID
-                data.question,      // Question
-                data.answer || "",  // AI Answer
-                0,                  // Likes Count
-                0                   // Comments Count
+                id,
+                timestamp,
+                data.name,
+                data.school || "",
+                data.studentId,
+                data.question,
+                data.answer || "",
+                0, // Likes
+                0  // Comments
             ]);
 
-            return response({ result: "success", id: id });
+            return response({ result: "success", id: id, message: "Question created" });
 
         } else if (action === 'toggle_like') {
             const likesSheet = ss.getSheetByName("Likes");
@@ -91,13 +90,11 @@ function doPost(e) {
             const questionId = data.questionId;
             const studentId = data.studentId;
 
-            // 1. Manage Log in Likes Sheet
-            const rows = likesSheet.getDataRange().getValues();
-            let rowIndexToDelete = -1;
-            let currentLikes = 0;
             let isLiked = false;
+            let rowIndexToDelete = -1;
 
-            // Check if already liked
+            // Check existing like
+            const rows = likesSheet.getDataRange().getValues();
             for (let i = 1; i < rows.length; i++) {
                 if (rows[i][0] == questionId && rows[i][1] == studentId) {
                     rowIndexToDelete = i + 1;
@@ -107,41 +104,40 @@ function doPost(e) {
             }
 
             if (isLiked) {
-                likesSheet.deleteRow(rowIndexToDelete); // Unlike
+                likesSheet.deleteRow(rowIndexToDelete);
             } else {
-                likesSheet.appendRow([questionId, studentId, timestamp]); // Like
+                likesSheet.appendRow([questionId, studentId, timestamp]);
             }
 
-            // 2. Update Count in Questions Sheet
+            // Update Count
             const qRows = questionsSheet.getDataRange().getValues();
             let qRowIndex = -1;
+            let currentLikes = 0;
 
-            // Find the row with matching ID (Column A is Index 0)
-            for (let i = 1; i < qRows.length; i++) { // Skip header
+            for (let i = 1; i < qRows.length; i++) {
                 if (qRows[i][0] == questionId) {
-                    qRowIndex = i + 1; // 1-based index
-                    // Get current likes count from Column H (Index 7)
-                    // Note: If cell is empty, treat as 0
+                    qRowIndex = i + 1;
                     currentLikes = Number(qRows[i][7]) || 0;
                     break;
                 }
             }
 
+            let newCount = currentLikes;
             if (qRowIndex > 0) {
-                // Determine new count
-                const newCount = isLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
-                // Update Column H (8th column)
+                newCount = isLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
                 questionsSheet.getRange(qRowIndex, 8).setValue(newCount);
-                return response({ result: "success", type: isLiked ? "unliked" : "liked", newCount: newCount });
             }
 
-            return response({ result: "error", message: "Question not found" });
+            return response({
+                result: "success",
+                type: isLiked ? "unliked" : "liked",
+                newCount: newCount
+            });
 
         } else if (action === 'add_comment') {
             const commentsSheet = ss.getSheetByName("Comments");
             const questionsSheet = ss.getSheetByName("Questions");
 
-            // 1. Add to Comments Sheet
             commentsSheet.appendRow([
                 data.questionId,
                 data.studentId,
@@ -150,7 +146,7 @@ function doPost(e) {
                 timestamp
             ]);
 
-            // 2. Update Count in Questions Sheet
+            // Update Count
             const qRows = questionsSheet.getDataRange().getValues();
             let qRowIndex = -1;
             let currentComments = 0;
@@ -158,18 +154,18 @@ function doPost(e) {
             for (let i = 1; i < qRows.length; i++) {
                 if (qRows[i][0] == data.questionId) {
                     qRowIndex = i + 1;
-                    currentComments = Number(qRows[i][8]) || 0; // Column I (Index 8)
+                    currentComments = Number(qRows[i][8]) || 0;
                     break;
                 }
             }
 
+            let newCount = currentComments;
             if (qRowIndex > 0) {
-                const newCount = currentComments + 1;
-                questionsSheet.getRange(qRowIndex, 9).setValue(newCount); // Column I
-                return response({ result: "success", newCount: newCount });
+                newCount = currentComments + 1;
+                questionsSheet.getRange(qRowIndex, 9).setValue(newCount);
             }
 
-            return response({ result: "success", message: "Comment added but count not updated (ID not found)" });
+            return response({ result: "success", newCount: newCount, message: "Comment added" });
         }
 
         return response({ result: "error", message: "Invalid action" });
@@ -182,61 +178,70 @@ function doPost(e) {
 }
 
 function doGet(e) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const lock = LockService.getScriptLock();
+    lock.tryLock(5000); // Try to get lock for reads too if high concurrency, but optional for simple reads
 
-    // 1. Get Questions
-    const qSheet = ss.getSheetByName("Questions");
-    const qRows = qSheet.getDataRange().getValues();
-    qRows.shift(); // Remove headers
+    try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 2. Get Likes
-    const lSheet = ss.getSheetByName("Likes");
-    const lRows = lSheet.getDataRange().getValues();
-    lRows.shift();
-    // Map likes by QuestionID
-    const likesMap = {}; // { questionId: count }
-    lRows.forEach(row => {
-        const qId = row[0];
-        likesMap[qId] = (likesMap[qId] || 0) + 1;
-    });
+        // 1. Get Questions
+        const qSheet = ss.getSheetByName("Questions");
+        if (!qSheet) return response([]); // Questions sheet missing
+        const qRows = qSheet.getDataRange().getValues();
+        qRows.shift(); // Remove headers
 
-    // 3. Get Comments
-    const cSheet = ss.getSheetByName("Comments");
-    const cRows = cSheet.getDataRange().getValues();
-    cRows.shift();
-    // Map comments by QuestionID
-    const commentsMap = {}; // { questionId: [comments...] }
-    cRows.forEach(row => {
-        const qId = row[0];
-        if (!commentsMap[qId]) commentsMap[qId] = [];
-        commentsMap[qId].push({
-            studentId: row[1],
-            name: row[2],
-            content: row[3],
-            timestamp: row[4]
+        // 2. Get Likes
+        const lSheet = ss.getSheetByName("Likes");
+        const lRows = lSheet ? lSheet.getDataRange().getValues() : [];
+        if (lRows.length > 0) lRows.shift();
+
+        const likesMap = {};
+        lRows.forEach(row => {
+            const qId = row[0];
+            likesMap[qId] = (likesMap[qId] || 0) + 1;
         });
-    });
 
-    // 4. Assemble Data
-    // Headers: ID(0), Date(1), Name(2), School(3), Student ID(4), Question(5), AI Answer(6), Likes Count(7), Comments Count(8)
-    const questions = qRows.map(row => {
-        const qId = row[0];
-        return {
-            id: qId,
-            timestamp: row[1],
-            userDisplayName: row[2], // Name
-            school: row[3],          // School
-            studentId: row[4],       // Student ID
-            content: row[5],         // Question
-            answer: row[6],          // AI Answer
-            likes: likesMap[qId] || 0,
-            comments: commentsMap[qId] || [],
-            commentsCount: (commentsMap[qId] || []).length,
-            userAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(row[2])}` // Use Name for seed
-        };
-    }).reverse();
+        // 3. Get Comments
+        const cSheet = ss.getSheetByName("Comments");
+        const cRows = cSheet ? cSheet.getDataRange().getValues() : [];
+        if (cRows.length > 0) cRows.shift();
 
-    return response(questions);
+        const commentsMap = {};
+        cRows.forEach(row => {
+            const qId = row[0];
+            if (!commentsMap[qId]) commentsMap[qId] = [];
+            commentsMap[qId].push({
+                studentId: row[1],
+                name: row[2],
+                content: row[3],
+                timestamp: row[4]
+            });
+        });
+
+        const questions = qRows.map(row => {
+            const qId = row[0];
+            return {
+                id: qId,
+                timestamp: row[1],
+                userDisplayName: row[2],
+                school: row[3],
+                studentId: row[4],
+                content: row[5],
+                answer: row[6],
+                likes: likesMap[qId] || 0, // Calculate from Likes sheet for accuracy
+                comments: commentsMap[qId] || [],
+                commentsCount: (commentsMap[qId] || []).length,
+                userAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(row[2])}`
+            };
+        }).reverse();
+
+        return response(questions);
+
+    } catch (e) {
+        return response({ result: "error", error: e.toString() });
+    } finally {
+        lock.releaseLock();
+    }
 }
 
 function response(data) {

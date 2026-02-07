@@ -26,18 +26,21 @@ export const googleSheetsService = {
     async submitQuestion(data: { name: string; studentId: string; school: string; question: string; answer?: string }) {
         if (!SHEET_API_URL) throw new Error("Google Sheet URL not configured");
 
-        console.log("[API] submitQuestion sending:", data);
+        console.log("🚀 [API] submitQuestion START", data);
         try {
-            await fetch(SHEET_API_URL, {
+            const response = await fetch(SHEET_API_URL, {
                 method: 'POST',
-                mode: 'no-cors', // Important: no-cors means we can't read the response, but it sends
-                headers: { 'Content-Type': 'text/plain' },
+                // mode: 'no-cors', // REMOVED: We need to read the response!
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // GAS requires text/plain to avoid preflight issues sometimes
                 body: JSON.stringify({ ...data, action: 'create_question' })
             });
-            console.log("[API] submitQuestion sent. (no-cors mode, assuming success)");
-            return { result: 'success' };
+
+            const result = await response.json();
+            console.log("✅ [API] submitQuestion SUCCESS:", result);
+            return result;
         } catch (e) {
-            console.error("[API] submitQuestion failed:", e);
+            console.error("❌ [API] submitQuestion FAILED:", e);
             throw e;
         }
     },
@@ -45,23 +48,20 @@ export const googleSheetsService = {
     async toggleLike(questionId: string, studentId: string) {
         if (!SHEET_API_URL) return { result: 'error', message: 'No API URL' };
 
-        console.log("[API] toggleLike sending:", { questionId, studentId });
+        console.log(`🚀 [API] toggleLike START (Q: ${questionId})`);
         try {
-            // Note: In 'no-cors' mode, we cannot read the response JSON.
-            // We optimize for fire-and-forget or assume success if no network error.
-            // *However*, to get real updates, we usually need 'cors' if the script supports it.
-            // Standard simple trigger apps script often requires 'redirect' following or 'text/plain'.
-            // For this project's simple setup with 'no-cors', client must assume success.
-            await fetch(SHEET_API_URL, {
+            const response = await fetch(SHEET_API_URL, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: 'toggle_like', questionId, studentId })
             });
-            console.log("[API] toggleLike sent.");
-            return { result: 'success' };
+
+            const result = await response.json();
+            console.log("✅ [API] toggleLike SUCCESS:", result);
+            return result;
         } catch (e) {
-            console.error("[API] toggleLike failed:", e);
+            console.error("❌ [API] toggleLike FAILED:", e);
             return { result: 'error', error: e };
         }
     },
@@ -69,18 +69,20 @@ export const googleSheetsService = {
     async addComment(questionId: string, studentId: string, name: string, content: string) {
         if (!SHEET_API_URL) return { result: 'error', message: 'No API URL' };
 
-        console.log("[API] addComment sending:", { questionId, studentId, name, content });
+        console.log(`🚀 [API] addComment START (Q: ${questionId})`);
         try {
-            await fetch(SHEET_API_URL, {
+            const response = await fetch(SHEET_API_URL, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: 'add_comment', questionId, studentId, name, content })
             });
-            console.log("[API] addComment sent.");
-            return { result: 'success' };
+
+            const result = await response.json();
+            console.log("✅ [API] addComment SUCCESS:", result);
+            return result;
         } catch (e) {
-            console.error("[API] addComment failed:", e);
+            console.error("❌ [API] addComment FAILED:", e);
             return { result: 'error', error: e };
         }
     },

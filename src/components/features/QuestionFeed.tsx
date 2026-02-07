@@ -140,7 +140,7 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
                 </div>
             )}
 
-            <div className="flex items-center gap-6 pt-4 border-t border-slate-50">
+            <div className="flex items-center gap-6 pt-4 border-t border-slate-50 relative z-10">
                 <button
                     onClick={handleLike}
                     className={`flex items-center gap-2 text-sm font-medium transition-all transform active:scale-95 ${isLiked ? 'text-pink-500' : 'text-slate-500 hover:text-pink-400'
@@ -161,7 +161,7 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
 
             {/* Comments Section */}
             {showComments && (
-                <div className="mt-4 pt-4 border-t border-slate-50 animate-in fade-in slide-in-from-top-2">
+                <div className="mt-4 pt-4 border-t border-slate-50 animate-in fade-in slide-in-from-top-2 relative z-10">
                     <div className="space-y-4 mb-4 max-h-60 overflow-y-auto pr-2">
                         {localComments.length === 0 && (
                             <p className="text-center text-xs text-slate-400 py-2">첫 번째 댓글을 남겨보세요!</p>
@@ -206,8 +206,10 @@ export default function QuestionFeed() {
     const [loading, setLoading] = useState(true);
 
     const fetchQuestions = async () => {
+        console.log("🔄 [UI] Fetching questions...");
         setLoading(true);
         const data = await googleSheetsService.getQuestions();
+        console.log(`✅ [UI] Fetched ${data.length} questions.`);
         setQuestions(data);
         setLoading(false);
     };
