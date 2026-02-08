@@ -30,7 +30,6 @@ export default function QuestionInput() {
 
         setIsSubmitting(true);
         try {
-            console.log("⏳ [UI] Submitting question...");
             await googleSheetsService.submitQuestion({
                 name: user.name,
                 studentId: user.studentId,
@@ -39,7 +38,6 @@ export default function QuestionInput() {
                 answer: showAnswer ? answer : undefined
             });
 
-            console.log("✅ [UI] Question submitted! Triggering refresh.");
             setQuestion('');
             setAnswer('');
             setShowAnswer(false);
@@ -47,7 +45,7 @@ export default function QuestionInput() {
             // Trigger refresh for leaderboard and feed
             triggerRefresh();
 
-            alert('질문이 성공적으로 등록되었습니다! (새로고침 완료)');
+            // alert('질문이 성공적으로 등록되었습니다! (새로고침 완료)');
         } catch (error: any) {
             console.error("Error submitting", error);
             if (error.message.includes("configured")) {

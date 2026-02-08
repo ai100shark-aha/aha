@@ -26,36 +26,30 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
             return;
         }
 
-        console.log("[UI] Like button clicked for:", question.id);
         const likedKey = `liked_${question.id}`;
         const previousLikes = likes;
         const previousIsLiked = isLiked;
 
         // 1. Optimistic Update (Visual Feedback ONLY)
-        // We toggle the heart immediately for responsiveness, but NOT the number logic entirely.
         if (isLiked) {
             setIsLiked(false);
             localStorage.removeItem(likedKey);
-            // We assume -1 for now visually
             setLikes(prev => Math.max(0, prev - 1));
         } else {
             setIsLiked(true);
             localStorage.setItem(likedKey, 'true');
-            // We assume +1 for now visually
             setLikes(prev => prev + 1);
         }
 
-        // 2. API Call
+        // 2. API Call (Background)
         try {
-            console.log("[UI] Sending API request...");
             const result: any = await googleSheetsService.toggleLike(question.id, user.studentId);
 
             if (result && result.result === 'success') {
-                console.log("✅ [UI] API Success, New Count:", result.newCount);
-                // CRITICAL: Update with the ACTUAL server count to ensure sync
+                // Sync with actual server count
                 setLikes(result.newCount);
 
-                // Also ensures our visual state matches server reality (optional but good)
+                // Ensure visual state matches server reality
                 const serverIsLiked = result.type === 'liked';
                 setIsLiked(serverIsLiked);
                 if (serverIsLiked) {
@@ -68,9 +62,8 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
                 throw new Error(result?.message || "Unknown error");
             }
         } catch (error) {
-            console.error("❌ [UI] API Failed, reverting:", error);
-            alert("좋아요 반영 실패! 원래대로 되돌립니다.");
-            // 3. Revert on Failure
+            console.error("Like API Failed, reverting:", error);
+            // 3. Revert on Failure (Silent Revert)
             setLikes(previousLikes);
             setIsLiked(previousIsLiked);
             if (previousIsLiked) {
@@ -85,8 +78,6 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
         e.preventDefault();
         if (!user || !commentText.trim()) return;
 
-        console.log("[UI] Comment submit clicked");
-
         // 1. Optimistic Update
         const newComment = {
             studentId: user.studentId,
@@ -98,25 +89,22 @@ function QuestionCard({ question }: { question: SheetQuestion }) {
 
         setLocalComments([...localComments, newComment]);
         setCommentText("");
-        console.log("[UI] Optimistic Update: Comment added locally");
 
         // 2. API Call
         try {
-            console.log("[UI] Sending API request...");
             const result: any = await googleSheetsService.addComment(question.id, user.studentId, user.name, newComment.content);
 
             if (result && result.result === 'success') {
-                console.log("✅ [UI] API Success");
-                // alert("댓글이 등록되었습니다! (DB 저장 완료)"); // Removed as per user request
+                // Success
             } else {
                 throw new Error(result?.message || "Unknown error");
             }
         } catch (error) {
-            console.error("[UI] API Failed, reverting:", error);
-            alert("댓글 등록 실패! 다시 시도해주세요.");
+            console.error("Comment API Failed, reverting:", error);
+            alert("댓글 등록 실패! 다시 시도해주세요."); // Keep this alert as it's a content loss risk
             // 3. Revert on Failure
             setLocalComments(previousComments);
-            setCommentText(newComment.content); // Restore text so user doesn't lose it
+            setCommentText(newComment.content);
         }
     };
 
@@ -218,10 +206,8 @@ export default function QuestionFeed() {
     const [loading, setLoading] = useState(true);
 
     const fetchQuestions = async () => {
-        console.log("🔄 [UI] Fetching questions...");
         setLoading(true);
         const data = await googleSheetsService.getQuestions();
-        console.log(`✅ [UI] Fetched ${data.length} questions.`);
         setQuestions(data);
         setLoading(false);
     };

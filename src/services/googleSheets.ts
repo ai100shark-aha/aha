@@ -26,7 +26,6 @@ export const googleSheetsService = {
     async submitQuestion(data: { name: string; studentId: string; school: string; question: string; answer?: string }) {
         if (!SHEET_API_URL) throw new Error("Google Sheet URL not configured");
 
-        console.log("🚀 [API] submitQuestion START", data);
         try {
             const response = await fetch(SHEET_API_URL, {
                 method: 'POST',
@@ -37,7 +36,6 @@ export const googleSheetsService = {
             });
 
             const result = await response.json();
-            console.log("✅ [API] submitQuestion SUCCESS:", result);
             return result;
         } catch (e) {
             console.error("❌ [API] submitQuestion FAILED:", e);
@@ -48,7 +46,6 @@ export const googleSheetsService = {
     async toggleLike(questionId: string, studentId: string) {
         if (!SHEET_API_URL) return { result: 'error', message: 'No API URL' };
 
-        console.log(`🚀 [API] toggleLike START (Q: ${questionId})`);
         try {
             const response = await fetch(SHEET_API_URL, {
                 method: 'POST',
@@ -58,7 +55,6 @@ export const googleSheetsService = {
             });
 
             const result = await response.json();
-            console.log("✅ [API] toggleLike SUCCESS:", result);
             return result;
         } catch (e) {
             console.error("❌ [API] toggleLike FAILED:", e);
@@ -69,7 +65,6 @@ export const googleSheetsService = {
     async addComment(questionId: string, studentId: string, name: string, content: string) {
         if (!SHEET_API_URL) return { result: 'error', message: 'No API URL' };
 
-        console.log(`🚀 [API] addComment START (Q: ${questionId})`);
         try {
             const response = await fetch(SHEET_API_URL, {
                 method: 'POST',
@@ -79,7 +74,6 @@ export const googleSheetsService = {
             });
 
             const result = await response.json();
-            console.log("✅ [API] addComment SUCCESS:", result);
             return result;
         } catch (e) {
             console.error("❌ [API] addComment FAILED:", e);
